@@ -2,8 +2,12 @@
 # Drop
 Airdrop alternative
 
-
-To test locally:
+To test system locally with node:
 ```bash
-jekyll serve --config _config.yml,_config_dev.yml
+node server.js
+```
+
+To test locally with jekyll:
+```bash
+jekyll serve --config _config_dev.yml
 ```
