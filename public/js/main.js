@@ -1,11 +1,3 @@
-/* eslint no-unused-expressions: 0 */
-/*
- *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
- */
 'use strict';
 
 let localConnection;
@@ -21,6 +13,8 @@ const sendProgress = document.querySelector('progress#sendProgress');
 const receiveProgress = document.querySelector('progress#receiveProgress');
 const statusMessage = document.querySelector('span#status');
 const sendFileButton = document.querySelector('button#sendFile');
+const setupsessionButton = document.querySelector('button#setupSession');
+const sessionidInput = document.querySelector('input#sessionIDInput');
 
 let receiveBuffer = [];
 let receivedSize = 0;
@@ -38,6 +32,11 @@ abortButton.addEventListener('click', () => {
     console.log('Abort read!');
     fileReader.abort();
   }
+});
+
+setupsessionButton.addEventListener('click', () => {
+  let input = sessionidInput.value;
+  let session = new Session(input);
 });
 
 async function handleFileInputChange() {
