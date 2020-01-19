@@ -294,7 +294,6 @@ function onReceiveMessageCallback(event){
 
   // we are assuming that our signaling protocol told
   // about the expected file size (and name, hash, etc).
-  // const file = fileInput.files[0];
   if (receivedSize === receivingFileMeta.size) {
     const received = new Blob(receiveBuffer);
     receiveBuffer = [];
@@ -314,10 +313,6 @@ function onReceiveMessageCallback(event){
       clearInterval(statsInterval);
       statsInterval = null;
     } 
-  } else {
-    console.error('Receiving file does not match!');
-    console.log('Incoming Metadata: ', receivingFileMeta);
-    console.log('Incoming file size: ', receivedSize);
   }
 }
 
