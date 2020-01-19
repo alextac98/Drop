@@ -1,67 +1,81 @@
-'use strict';
+// const express = require('express')
 
-var os = require('os');
-var nodeStatic = require('node-static');
-var http = require('http');
-var socketIO = require('socket.io');
 
-var fileServer = new(nodeStatic.Server)();
-var app = http.createServer(function(req, res) {
-  fileServer.serve(req, res);
-}).listen(8080);
 
-var io = socketIO.listen(app);
-io.sockets.on('connection', function(socket) {
+// function startServer() {
+//     const app = express()
 
-  // convenience function to log server messages on the client
-  function log() {
-    var array = ['Message from server:'];
-    array.push.apply(array, arguments);
-    socket.emit('log', array);
-  }
+//     app.use(express.static('public'));
 
-  socket.on('message', function(message) {
-    log('Client said: ', message);
-    // for a real app, would be room-only (not broadcast)
-    socket.broadcast.emit('message', message);
-  });
+//     app.listen(3000, function () {
+//         console.log("Example app listening on port 3000!")
+//     });
+// };
 
-  socket.on('create or join', function(room) {
-    log('Received request to create or join room ' + room);
+// startServer();
 
-    var clientsInRoom = io.sockets.adapter.rooms[room];
-    var numClients = clientsInRoom ? Object.keys(clientsInRoom.sockets).length : 0;
-    log('Room ' + room + ' now has ' + numClients + ' client(s)');
+var WebSocketServer = require('websocket').server;
+var https = require('https');
+var fs = require('fs');
+var clients = []; 
 
-    if (numClients === 0) {
-      socket.join(room);
-      log('Client ID ' + socket.id + ' created room ' + room);
-      socket.emit('created', room, socket.id);
 
-    } else if (numClients === 1) {
-      log('Client ID ' + socket.id + ' joined room ' + room);
-      io.sockets.in(room).emit('join', room);
-      socket.join(room);
-      socket.emit('joined', room, socket.id);
-      io.sockets.in(room).emit('ready');
-    } else { // max two clients
-      socket.emit('full', room);
+// change key and cert if you have other ones you use with a different name
+var options = {
+  key: fs.readFileSync('webrtcwwsocket-key.pem'),
+  cert: fs.readFileSync('webrtcwwsocket-cert.pem'),
+};
+
+var server = https.createServer(options, function(request, response) {
+  fs.readFile(__dirname + '/index.html',
+  function (err, data) {
+    if (err) {
+      response.writeHead(500);
+      return response.end('Error loading index.html');
     }
+    response.writeHead(200);
+    response.end(data);
   });
+});
 
-  socket.on('ipaddr', function() {
-    var ifaces = os.networkInterfaces();
-    for (var dev in ifaces) {
-      ifaces[dev].forEach(function(details) {
-        if (details.family === 'IPv4' && details.address !== '127.0.0.1') {
-          socket.emit('ipaddr', details.address);
-        }
-      });
-    }
-  });
+server.listen(443, function() {
+  console.log((new Date()) + " Server is listening on port 443");
+});
 
-  socket.on('bye', function(){
-    console.log('received bye');
-  });
+// create the server
+wsServer = new WebSocketServer({
+  httpServer: server
+});
 
+function sendCallback(err) {
+  if (err) console.error("send() error: " + err);
+}
+
+// This callback function is called every time someone
+// tries to connect to the WebSocket server
+wsServer.on('request', function(request) {
+  console.log((new Date()) + ' Connection from origin ' + request.origin + '.');
+  var connection = request.accept(null, request.origin);
+  console.log(' Connection ' + connection.remoteAddress);
+  clients.push(connection);
+    
+  // This is the most important callback for us, we'll handle
+  // all messages from users here.
+  connection.on('message', function(message) {
+    if (message.type === 'utf8') {
+      // process WebSocket message
+      console.log((new Date()) + ' Received Message ' + message.utf8Data);
+      // broadcast message to all connected clients
+      clients.forEach(function (outputConnection) {
+        if (outputConnection != connection) {
+          outputConnection.send(message.utf8Data, sendCallback);
+        }   
+      }); 
+    }   
+  }); 
+    
+  connection.on('close', function(connection) {
+    // close user connection
+    console.log((new Date()) + " Peer disconnected.");    
+  }); 
 });

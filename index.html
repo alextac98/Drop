@@ -1,6 +1,67 @@
 <!DOCTYPE html>
 <html>
-    <head>
-        <META http-equiv="refresh" content="0;URL=public2/index.html">
-    </head>
+<head>
+  <title>WebRTC Demo</title>  
+
+  <style>
+    h1, h2, h3 {
+      background: rgb(238, 238, 238);
+      border-bottom-width: 1px;
+      display: block;
+      margin-top: 0;
+      padding: .2em;
+      text-align: center;
+    }
+    .left-video {
+      width: 320px; 
+      height: 240px; 
+      border: 1px solid black;
+    }
+    .right-video {
+      width: 320px; 
+      height: 240px; 
+      border: 1px solid black;
+    }
+    .left-section {
+      float: left;
+    }
+    .right-section {
+      float: right;
+    }
+    .buttons-left-section {
+      position: absolute;
+      float: left;
+    }
+    .buttons-right-section {
+      position: absolute;
+      right: 6px;
+    }
+  </style>
+
+</head>
+
+<script src="public/js/main.js"></script>
+
+<body>
+
+  <h1>WebRTC Audio \ Video  Demo using node.js and WebSocket</h1>
+  <h2>Use Chrome or Firefox, connect two browsers and off you go.</h2>
+  <div class="left-section">
+  <h3> Local Video </h3>
+  <video class="left-video" id="localvideo" autoplay controls></video>
+    <div class="buttons-left-section">
+      <button type="button" onclick="startMedia();">Start media</button>
+      <button type="button" onclick="stopMedia();">Stop media</button>
+    </div>
+  </div>
+  <div class="right-section">
+  <h3> Remote Video </h3>
+  <video class="right-video" id="remotevideo" autoplay controls></video>
+    <div class="buttons-right-section">
+      <button type="button" onclick="connect();">Connect</button>
+      <button type="button" onclick="disconnect();">Disconnect</button>
+    </div>
+  </div>
+
+</body>
 </html>
