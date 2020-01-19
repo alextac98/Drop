@@ -4,11 +4,11 @@
 <head>
 
   <meta charset="utf-8">
-  <meta name="description" content="WebRTC code samples">
+  <meta name="description" content="Drop: An open-source alternative to Airdrop">
   <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
-  <meta itemprop="description" content="Client-side WebRTC code samples">
+  <meta itemprop="description" content="Drop: An open-source alternative to Airdrop">
   <meta itemprop="image" content="../../../images/webrtc-icon-192x192.png">
-  <meta itemprop="name" content="WebRTC code samples">
+  <meta itemprop="name" content="Drop">
   <meta name="mobile-web-app-capable" content="yes">
   <meta id="theme-color" name="theme-color" content="#ffffff">
 
@@ -20,13 +20,23 @@
   <link href="//fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet" type="text/css">
   <link rel="stylesheet" href="css/main.css" />
 
+  <style>
+  body
+  .content{
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 30px
+  }
+  
+  </style>
+
 </head>
 
 <body>
 
-  <div id="container">
+  <div class="content" id="container">
 
-    <h1>Transferring a file test</h1>
+    <h1>Drop a file!</h1>
 
     <section>
       <div >
@@ -35,26 +45,23 @@
         </form>
         <button disabled id="sendFile">Send</button>
         <button disabled id="abortButton">Abort</button>
+        <br>
       </div>
-
+      <br>
       <div class="progress">
         <div class="label">Send progress: </div>
-        <progress id="sendProgress" max="0" value="0"></progress>
+        <progress id="sendProgress" max="0" value="0" style="width: 300px;"></progress>
       </div>
 
       <div class="progress">
         <div class="label">Receive progress: </div>
-        <progress id="receiveProgress" max="0" value="0"></progress>
+        <progress id="receiveProgress" max="0" value="0" style="width: 300px;"></progress>
       </div>
 
       <div id="bitrate"></div>
       <a id="download"></a>
       <span id="status"></span>
 
-    </section>
-
-    <section>
-      <p>View the console to see logging.</p>
     </section>
 
   </div>
