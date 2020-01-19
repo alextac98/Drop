@@ -1,241 +1,182 @@
-var hostArray = window.location.host.split(':');
-var serverLoc = 'wss://' + hostArray[0] + ':443/'
-var socket = new WebSocket(serverLoc); 
+'use strict'
+let pc;
+let localConnection;
+let sendChannel;
+let fileReader;
 
-var localvid = document.getElementById('localvideo');
-var remotevid = document.getElementById('remotevideo');
-var localStream = null;
-var pc = null;
-var mediaFlowing = false;
-var useH264 = true;
-var mediaConstraints = {'mandatory': {
-                        'offerToReceiveAudio':true, 
-                        'offerToReceiveVideo':true }};
+var debug = true;
+var isChannelReady = false;
+var isHost = false;
+var isStarted = false;
+var localStream;
+var remoteStream;
+var turnReady;
 
-function startMedia() {
+var pcConfig = {
+  'iceServers': [{
+    'urls': 'stun:stun.l.google.com:19302'
+  }]
+};
 
-  var promisifiedOldGUM = function(constraints, successCallback, errorCallback) {
+var room = prompt('Enter room name');
 
-    // First get ahold of getUserMedia, if present
-    var getUserMedia = (navigator.getUserMedia ||
-                        navigator.webkitGetUserMedia ||
-                        navigator.mozGetUserMedia);
+////////////////////////////////////////////////
+// ---------- Set up HTML Elements ---------- //
+////////////////////////////////////////////////
+const input_fileInput = document.querySelector('input#fileInput');
+const button_sendFile = document.querySelector('button#sendFile');
+const button_abort = document.querySelector('button#abortButton');
 
-    // Some browsers just don't implement it - return a rejected promise with an error
-    // to keep a consistent interface
-    if(!getUserMedia) {
-      return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
-    }
+button_sendFile.addEventListener('click', () => sendFile());
 
-    // Otherwise, wrap the call to the old navigator.getUserMedia with a Promise
-    return new Promise(function(successCallback, errorCallback) {
-      getUserMedia.call(navigator, constraints, successCallback, errorCallback);
-    });
-  }
+button_abort.addEventListener('click', () => {
+  console.log('Abort read!');
+});
 
-  // Older browsers might not implement mediaDevices at all, so we set an empty object first
-  if(navigator.mediaDevices === undefined) {
-    navigator.mediaDevices = {};
-  }
-
-  // Some browsers partially implement mediaDevices. We can't just assign an object
-  // with getUserMedia as it would overwrite existing properties.
-  // Here, we will just add the getUserMedia property if it's missing.
-  if(navigator.mediaDevices.getUserMedia === undefined) {
-    navigator.mediaDevices.getUserMedia = promisifiedOldGUM;
-  }
-
-  // Prefer camera resolution nearest to 1280x720.
-  var constraints = { audio: true, video: { width: 1280, height: 720 } };
-
-  navigator.mediaDevices.getUserMedia(constraints)
-    .then(function(stream) {
-      localStream = stream;
-      try {
-        localvid.src = window.URL.createObjectURL(stream);
-        localvid.play();
-      } catch(e) {
-        console.log("Error setting video src: ", e);
-      }
-    })
-    .catch(function(err) {
-      console.log(err.name + ": " + err.message);
-      if (location.protocol === 'http:') {
-        alert('Please test this using HTTPS.');
-      } else {
-        alert('Have you enabled the appropriate flag? see README.md');
-      }
-      console.error(e);
-  });
-}
-
-// stop local video
-function stopMedia() {
-  localvid.src = "";
-  localStream.getVideoTracks()[0].stop();
-}
-
-function useH264Codec(sdp) {
-
-  var isFirefox = typeof InstallTrigger !== 'undefined';
-  if (isFirefox)
-      updated_sdp = sdp.replace("m=video 9 UDP/TLS/RTP/SAVPF 120 126 97\r\n","m=video 9 UDP/TLS/RTP/SAVPF 126 120 97\r\n");
-  else
-      updated_sdp = sdp.replace("m=video 9 UDP/TLS/RTP/SAVPF 100 101 107 116 117 96 97 99 98\r\n","m=video 9 UDP/TLS/RTP/SAVPF 107 101 100 116 117 96 97 99 98\r\n");
-
-  return updated_sdp;
-}
-
-function setLocalDescAndSendMessageOffer(sessionDescription) {
-
-  if (useH264) {
-    // use H264 video codec in offer every time
-    sessionDescription.sdp = useH264Codec(sessionDescription.sdp); 
-  }
-
-  pc.setLocalDescription(sessionDescription);
-
-  console.log("Sending SDP offer: ");
-  console.log(sessionDescription);
-
-  socket.send(JSON.stringify({
-                "messageType": "offer",
-                "peerDescription": sessionDescription
-           }));
-}
-
-function setLocalDescAndSendMessageAnswer(sessionDescription) {
-
-  if (useH264) {
-    // use H264 video codec in offer every time 
-    sessionDescription.sdp = useH264Codec(sessionDescription.sdp);
-  }
-  pc.setLocalDescription(sessionDescription);
-     
-  console.log("Sending SDP answer:");
-  console.log(sessionDescription);
-
-  socket.send(JSON.stringify({
-                "messageType": "answer",
-                "peerDescription": sessionDescription
-           }));
-}
-
-function onCreateOfferFailed() {
-  console.log("Create Offer failed");
-}
-
-// start the connection on button click 
-function connect() {
-  if (!mediaFlowing && localStream) {
-    createPeerConnection();
-    mediaFlowing = true;
-    pc.createOffer(setLocalDescAndSendMessageOffer, onCreateOfferFailed, mediaConstraints);
+input_fileInput.addEventListener('change', () => {
+  const file = input_fileInput.files[0];
+  if (!file) {
+    console.log('No file chosen');
   } else {
-    alert("Local stream not running yet or media still flowing");
+    button_sendFile.disabled = false;
   }
+});
+
+////////////////////////////////////////////////
+// ---------- Socket.io Connection ---------- //
+////////////////////////////////////////////////
+
+var socket = io.connect();
+if (room !== ''){
+  socket.emit('create or join', room);
+  console.log('Attempt made to create or join room', room);
 }
 
-// stop the connection on button click 
-function disconnect() {
-  console.log("disconnect.");    
-  socket.send(JSON.stringify({messageType: "bye"}));
-  stop();
+socket.on('created', function(room) {
+  console.log('Created room ' + room);
+  isHost = true;
+  createPeerConnection();
+});
+
+socket.on('full', function(room) {
+  console.log('Room ' + room + ' is full');
+});
+
+socket.on('join', function (room){
+  console.log('Another peer made a request to join room ' + room);
+  console.log('This peer is the initiator of room ' + room + '!');
+  isChannelReady = true;
+});
+
+socket.on('joined', function(room) {
+  console.log('joined: ' + room);
+  isChannelReady = true;
+  isHost = false;
+  createPeerConnection();
+  sendWebRTCOffer();
+});
+
+socket.on('log', function(array) {
+  console.log.apply(console, array);
+});
+
+///////////////////////////////////////////////////
+// ---------- Socket.io Send/Receive ----------- //
+///////////////////////////////////////////////////
+
+function sendMessage(message){
+  if (debug) console.log('Client sending message: ', message);
+  socket.emit('message', message);
 }
 
-function stop() {
-  pc.close();
-  pc = null;
-  remotevid.src = null; 
-  mediaFlowing = false;    
-}
+socket.on('message', function(message) {
+  console.log('Client received a message:', message);
+  if (message === 'got user media') {
 
-function onCreateAnswerFailed(error) {
-  console.log("Create Answer failed:",error);
-}
-
-socket.addEventListener("message", onWebSocketMessage, false);
-
-// process messages from web socket 
-function onWebSocketMessage(evt) {
-  var message = JSON.parse(evt.data);
-
-  if (message.messageType === 'offer') {
-    console.log("Received offer...")
-    console.log(evt);
-    if (!mediaFlowing) {
-      createPeerConnection();
-      mediaFlowing = true;
-    }
-    console.log('Creating remote session description...' );
-
-    var remoteDescription = message.peerDescription;
-    
-    var RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.RTCSessionDescription;
-    pc.setRemoteDescription(new RTCSessionDescription(remoteDescription), function() {
-      console.log('Sending answer...');
-      pc.createAnswer(setLocalDescAndSendMessageAnswer, onCreateAnswerFailed);
-    }, function() {  
-      console.log('Error setting remote description');   
+  } else if (message.type === 'offer') {
+    pc.setRemoteDescription(new RTCSessionDescription(message));
+    sendWebRTCAnswer();
+  } else if (message.type === 'answer' && isStarted) {
+    pc.setRemoteDescription(new RTCSessionDescription(message));
+  } else if (message.type === 'candidate' && isStarted){
+    let candidate = new RTCIceCandidate({
+      sdpMLineIndex: message.label,
+      candidate: message.candidate
     });
-
-  } else if (message.messageType === 'answer' && mediaFlowing) {
-    console.log('Received answer...');
-    console.log('Setting remote session description...' );
-    var remoteDescription = message.peerDescription;
-    var RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.RTCSessionDescription;
-    pc.setRemoteDescription(new RTCSessionDescription(remoteDescription));
-
-  } else if (message.messageType === "iceCandidate" && mediaFlowing) {
-    console.log('Received ICE candidate...');
-    var RTCIceCandidate = window.RTCIceCandidate || window.webkitRTCIceCandidate || window.RTCIceCandidate;
-    var candidate = new RTCIceCandidate({sdpMLineIndex:message.candidate.sdpMLineIndex, sdpMid:message.candidate.sdpMid, candidate:message.candidate.candidate});
-    pc.addIceCandidate(candidate );
-
-  } else if (message.messageType === 'bye' && mediaFlowing) {
-    console.log("Received bye");
-    stop();
+    pc.addIceCandidate(candidate);
+  } else if (message === 'bye' && isStarted){
+    // TODO: Add shutdown procedure
   }
-}
+});
+
+//////////////////////////////////////////////////
+// ---------- Manage Peer Connection ---------- //
+//////////////////////////////////////////////////
 
 function createPeerConnection() {
-  console.log("Creating peer connection");
-  RTCPeerConnection = window.webkitRTCPeerConnection || window.RTCPeerConnection;
-  var pc_config = {"iceServers":[]};
   try {
-    pc = new RTCPeerConnection(pc_config);
+    pc = new RTCPeerConnection(null);
+    pc.onicecandidate = handleIceCandidate;
+
+    var sendChannel = pc.createDataChannel('sendDataChannel');
+    sendChannel.binaryType = 'arraybuffer';
+
+    console.log('Created RTCPeerConnnection');
   } catch (e) {
-    console.log("Failed to create PeerConnection, exception: " + e.message);
+    console.log('Failed to create PeerConnection, exception: ' + e.message);
+    alert('Cannot create RTCPeerConnection object.');
+    return;
   }
-  // send any ice candidates to the other peer
-  pc.onicecandidate = function (evt) {
-    if (evt.candidate) {
-      console.log('Sending ICE candidate...');
-      console.log(evt.candidate);
+  isStarted = true;
+}
 
-      socket.send(JSON.stringify({
-                   "messageType": "iceCandidate",
-                   "candidate": evt.candidate 
-                  }));   
-    } else {
-      console.log("End of candidates.");
-    }
-  };
-  console.log('Adding local stream...');
-  pc.addStream(localStream);
-
-  pc.addEventListener("addstream", onRemoteStreamAdded, false);
-  pc.addEventListener("removestream", onRemoteStreamRemoved, false)
-
-  // when remote adds a stream, hand it on to the local video element
-  function onRemoteStreamAdded(evt) {
-    console.log("Added remote stream");
-    remotevid.src = window.URL.createObjectURL(evt.stream);
+function handleIceCandidate(event) {
+  console.log('icecandidate event: ', event);
+  if (event.candidate) {
+    sendMessage({
+      type: 'candidate',
+      label: event.candidate.sdpMLineIndex,
+      id: event.candidate.sdpMid,
+      candidate: event.candidate.candidate
+    });
+  } else {
+    console.log('End of candidates.');
   }
+}
 
-  // when remote removes a stream, remove it from the local video element
-  function onRemoteStreamRemoved(evt) {
-    console.log("Remove remote stream");
-    remotevid.src = "";
-  }
+function sendWebRTCOffer() {
+  // Send offer to peer
+  pc.createOffer(setLocalAndSendMessage, handleCreateOfferError);
+  console.log('Sent offer to peer');
+}
+
+function sendWebRTCAnswer() {
+  pc.createAnswer().then(
+    setLocalAndSendMessage,
+    onCreateSessionDescriptionError
+  );
+  console.log('Sent answer to peer');
+}
+
+function setLocalAndSendMessage(sessionDescription) {
+  pc.setLocalDescription(sessionDescription);
+  console.log('setLocalAndSendMessage sending message', sessionDescription);
+  sendMessage(sessionDescription);
+}
+
+function handleCreateOfferError(event) {
+  console.log('createOffer() error: ', event);
+}
+
+function onCreateSessionDescriptionError(error) {
+  console.log('create session description: ', event);
+}
+
+
+////////////////////////////////////////////////////////
+// ----------- File Send/Receive Functions ---------- //
+////////////////////////////////////////////////////////
+
+function sendFile() {
+  console.log('Sending file!');
 }

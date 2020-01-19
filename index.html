@@ -1,67 +1,66 @@
 <!DOCTYPE html>
+
 <html>
 <head>
-  <title>WebRTC Demo</title>  
 
-  <style>
-    h1, h2, h3 {
-      background: rgb(238, 238, 238);
-      border-bottom-width: 1px;
-      display: block;
-      margin-top: 0;
-      padding: .2em;
-      text-align: center;
-    }
-    .left-video {
-      width: 320px; 
-      height: 240px; 
-      border: 1px solid black;
-    }
-    .right-video {
-      width: 320px; 
-      height: 240px; 
-      border: 1px solid black;
-    }
-    .left-section {
-      float: left;
-    }
-    .right-section {
-      float: right;
-    }
-    .buttons-left-section {
-      position: absolute;
-      float: left;
-    }
-    .buttons-right-section {
-      position: absolute;
-      right: 6px;
-    }
-  </style>
+  <meta charset="utf-8">
+  <meta name="description" content="WebRTC code samples">
+  <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
+  <meta itemprop="description" content="Client-side WebRTC code samples">
+  <meta itemprop="image" content="../../../images/webrtc-icon-192x192.png">
+  <meta itemprop="name" content="WebRTC code samples">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta id="theme-color" name="theme-color" content="#ffffff">
+
+  <base target="_blank">
+
+  <title>Transfer a file</title>
+
+  <link rel="icon" sizes="192x192" href="../../../images/webrtc-icon-192x192.png">
+  <link href="//fonts.googleapis.com/css?family=Roboto:300,400,500,700" rel="stylesheet" type="text/css">
+  <link rel="stylesheet" href="css/main.css" />
 
 </head>
 
-<script src="public/js/main.js"></script>
-
 <body>
 
-  <h1>WebRTC Audio \ Video  Demo using node.js and WebSocket</h1>
-  <h2>Use Chrome or Firefox, connect two browsers and off you go.</h2>
-  <div class="left-section">
-  <h3> Local Video </h3>
-  <video class="left-video" id="localvideo" autoplay controls></video>
-    <div class="buttons-left-section">
-      <button type="button" onclick="startMedia();">Start media</button>
-      <button type="button" onclick="stopMedia();">Stop media</button>
-    </div>
+  <div id="container">
+
+    <h1>Transferring a file test</h1>
+
+    <section>
+      <div >
+        <form id="fileInfo">
+          <input type="file" id="fileInput" name="files"/>
+        </form>
+        <button disabled id="sendFile">Send</button>
+        <button disabled id="abortButton">Abort</button>
+      </div>
+
+      <div class="progress">
+        <div class="label">Send progress: </div>
+        <progress id="sendProgress" max="0" value="0"></progress>
+      </div>
+
+      <div class="progress">
+        <div class="label">Receive progress: </div>
+        <progress id="receiveProgress" max="0" value="0"></progress>
+      </div>
+
+      <div id="bitrate"></div>
+      <a id="download"></a>
+      <span id="status"></span>
+
+    </section>
+
+    <section>
+      <p>View the console to see logging.</p>
+    </section>
+
   </div>
-  <div class="right-section">
-  <h3> Remote Video </h3>
-  <video class="right-video" id="remotevideo" autoplay controls></video>
-    <div class="buttons-right-section">
-      <button type="button" onclick="connect();">Connect</button>
-      <button type="button" onclick="disconnect();">Disconnect</button>
-    </div>
-  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/main.js"></script>
 
 </body>
 </html>
