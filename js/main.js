@@ -5,6 +5,7 @@ let sendChannel;
 let receiveChannel;
 let fileReader;
 
+let receivingFileMeta;
 let receiveBuffer = [];
 let receivedSize = 0;
 
@@ -107,8 +108,10 @@ function sendMessage(message){
 
 socket.on('message', function(message) {
   console.log('Client received a message:', message);
-  if (message === 'got user media') {
-
+  if (message.type === 'metadata') {
+    receivingFileMeta = null;
+    receivedSize = 0;
+    receivingFileMeta = message;
   } else if (message.type === 'offer') {
     pc.setRemoteDescription(new RTCSessionDescription(message));
     sendWebRTCAnswer();
@@ -210,9 +213,17 @@ function sendData() {
   if (file.size === 0) {
     div_bitRate.innerHTML = '';
     span_statusMessage.textContent = 'File is empty, please select a non-empty file';
-    closeDataChannels();
     return;
   }
+
+  // Send Metadata first
+  let file_meta = {
+    type: "metadata",
+    name: file.name,
+    size: file.size
+  }
+  sendMessage(file_meta);
+
   progress_sendProgress.max = file.size;
   progress_receiveProgress.max = file.size;
   const chunkSize = 16384;
@@ -284,16 +295,14 @@ function onReceiveMessageCallback(event){
   // we are assuming that our signaling protocol told
   // about the expected file size (and name, hash, etc).
   // const file = fileInput.files[0];
-  // if (receivedSize === file.size) {
+  if (receivedSize === receivingFileMeta.size) {
     const received = new Blob(receiveBuffer);
     receiveBuffer = [];
-
+    console.log('File name: ', receivingFileMeta.name);
     anchor_download.href = URL.createObjectURL(received);
-    anchor_download.download = "download.pdf";
-    // anchor_download.textContent =
-    //   `Click to download '${file.name}' (${file.size} bytes)`;
+    anchor_download.download = receivingFileMeta.name;
     anchor_download.textContent =
-      `Click to download`;
+      `Click to download '${receivingFileMeta.name}' (${receivingFileMeta.size} bytes)`;
     anchor_download.style.display = 'block';
 
     const bitrate = Math.round(receivedSize * 8 /
@@ -304,10 +313,12 @@ function onReceiveMessageCallback(event){
     if (statsInterval) {
       clearInterval(statsInterval);
       statsInterval = null;
-    }
-
-    closeDataChannels();
-  // }
+    } 
+  } else {
+    console.error('Receiving file does not match!');
+    console.log('Incoming Metadata: ', receivingFileMeta);
+    console.log('Incoming file size: ', receivedSize);
+  }
 }
 
 function closeDataChannels() {
